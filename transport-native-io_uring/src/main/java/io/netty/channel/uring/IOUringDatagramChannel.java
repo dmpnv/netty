@@ -506,18 +506,17 @@ public final class IOUringDatagramChannel extends AbstractIOUringChannel impleme
             long bufferAddress = byteBuf.memoryAddress() + byteBuf.writerIndex();
             if (numDatagram <= 1) {
                 return scheduleRecvmsg0(submissionQueue, bufferAddress, writable) ? 1 : 0;
-            } else {
-                int i = 0;
-                // Add multiple IORING_OP_RECVMSG to the submission queue. This basically emulates recvmmsg(...)
-                for (; i < numDatagram && writable >= datagramSize; i++) {
-                    if (!scheduleRecvmsg0(submissionQueue, bufferAddress, datagramSize)) {
-                        break;
-                    }
-                    bufferAddress += datagramSize;
-                    writable -= datagramSize;
-                }
-                return i;
             }
+            int i = 0;
+            // Add multiple IORING_OP_RECVMSG to the submission queue. This basically emulates recvmmsg(...)
+            for (; i < numDatagram && writable >= datagramSize; i++) {
+                if (!scheduleRecvmsg0(submissionQueue, bufferAddress, datagramSize)) {
+                    break;
+                }
+                bufferAddress += datagramSize;
+                writable -= datagramSize;
+            }
+            return i;
         }
 
         private boolean scheduleRecvmsg0(IOUringSubmissionQueue submissionQueue, long bufferAddress, int bufferLength) {
@@ -540,34 +539,32 @@ public final class IOUringDatagramChannel extends AbstractIOUringChannel impleme
                 assert outstanding == 0;
                 // idx == -1 means that we did a write(...) and not a sendmsg(...) operation
                 return removeFromOutboundBuffer(outboundBuffer, res, "io_uring write");
-            } else {
-                // Store the result so we can handle it as soon as we have no outstanding writes anymore.
-                sendmsgResArray[data] = res;
-                if (outstanding == 0) {
-                    // All writes are done as part of a batch. Let's remove these from the ChannelOutboundBuffer
-                    boolean writtenSomething = false;
-                    int numWritten = sendmsgHdrs.length();
-                    sendmsgHdrs.clear();
-                    for (int i = 0; i < numWritten; i++) {
-                        writtenSomething |= removeFromOutboundBuffer(
-                                outboundBuffer, sendmsgResArray[i], "io_uring sendmsg");
-                    }
-                    return writtenSomething;
-                }
-                return true;
             }
+            // Store the result so we can handle it as soon as we have no outstanding writes anymore.
+            sendmsgResArray[data] = res;
+            if (outstanding == 0) {
+                // All writes are done as part of a batch. Let's remove these from the ChannelOutboundBuffer
+                boolean writtenSomething = false;
+                int numWritten = sendmsgHdrs.length();
+                sendmsgHdrs.clear();
+                for (int i = 0; i < numWritten; i++) {
+                    writtenSomething |= removeFromOutboundBuffer(
+                            outboundBuffer, sendmsgResArray[i], "io_uring sendmsg");
+                }
+                return writtenSomething;
+            }
+            return true;
         }
 
         private boolean removeFromOutboundBuffer(ChannelOutboundBuffer outboundBuffer, int res, String errormsg) {
             if (res >= 0) {
                 // When using Datagram we should consider the message written as long as res is not negative.
                 return outboundBuffer.remove();
-            } else {
-                try {
-                    return ioResult(errormsg, res) != 0;
-                } catch (Throwable cause) {
-                    return outboundBuffer.remove(cause);
-                }
+            }
+            try {
+                return ioResult(errormsg, res) != 0;
+            } catch (Throwable cause) {
+                return outboundBuffer.remove(cause);
             }
         }
 

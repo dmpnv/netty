@@ -3609,9 +3609,9 @@ public abstract class SSLEngineTest {
             ssc.delete();
         }
 
-        assertEquals(SslProvider.isTlsv13EnabledByDefault(sslClientProvider()),
+        assertEquals(SslProvider.isTlsv13EnabledByDefault(sslClientProvider(), clientSslContextProvider()),
                 arrayContains(clientProtocols, PROTOCOL_TLS_V1_3));
-        assertEquals(SslProvider.isTlsv13EnabledByDefault(sslServerProvider()),
+        assertEquals(SslProvider.isTlsv13EnabledByDefault(sslServerProvider(), serverSslContextProvider()),
                 arrayContains(serverProtocols, PROTOCOL_TLS_V1_3));
     }
 

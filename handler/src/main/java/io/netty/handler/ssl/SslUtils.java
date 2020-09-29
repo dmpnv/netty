@@ -28,6 +28,7 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.security.Provider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -168,15 +169,45 @@ final class SslUtils {
     /**
      * Returns {@code true} if the JDK itself supports TLSv1.3, {@code false} otherwise.
      */
-    static boolean isTLSv13SupportedByJDK() {
-        return TLSV1_3_JDK_SUPPORTED;
+    static boolean isTLSv13SupportedByJDK(Provider provider) {
+        if (provider == null) {
+            return TLSV1_3_JDK_SUPPORTED;
+        }
+        try {
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(null, new TrustManager[0], null);
+            for (String enabled: context.getSupportedSSLParameters().getProtocols()) {
+                if (PROTOCOL_TLS_V1_3.equals(enabled)) {
+                    return true;
+                }
+            }
+        } catch (Throwable cause) {
+            logger.debug("Unable to detect if JDK SSLEngine with provider {} supports TLSv1.3, assuming no",
+                    provider, cause);
+        }
+        return false;
     }
 
     /**
      * Returns {@code true} if the JDK itself supports TLSv1.3 and enabled it by default, {@code false} otherwise.
      */
-    static boolean isTLSv13EnabledByJDK() {
-        return TLSV1_3_JDK_DEFAULT_ENABLED;
+    static boolean isTLSv13EnabledByJDK(Provider provider) {
+        if (provider == null) {
+            return TLSV1_3_JDK_DEFAULT_ENABLED;
+        }
+        try {
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(null, new TrustManager[0], null);
+            for (String enabled: context.getDefaultSSLParameters().getProtocols()) {
+                if (PROTOCOL_TLS_V1_3.equals(enabled)) {
+                    return true;
+                }
+            }
+        } catch (Throwable cause) {
+            logger.debug("Unable to detect if JDK SSLEngine with provider {} enables TLSv1.3 by default," +
+                            " assuming no", provider, cause);
+        }
+        return false;
     }
 
     /**
